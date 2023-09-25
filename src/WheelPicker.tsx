@@ -10,6 +10,7 @@ import {
   ViewProps,
   FlatListProps,
   FlatList,
+  Platform,
 } from 'react-native';
 import styles from './WheelPicker.styles';
 import WheelPickerItem from './WheelPickerItem';
@@ -51,8 +52,9 @@ const WheelPicker: React.FC<Props> = ({
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [scrollY] = useState(new Animated.Value(0));
-
   const containerHeight = (1 + visibleRest * 2) * itemHeight;
+  const lastScrollTimestamp = useRef(new Date().getTime());
+  const [scrollIndex, setScrollIndex] = useState(selectedIndex);
   const paddedOptions = useMemo(() => {
     const array: (string | null)[] = [...options];
     for (let i = 0; i < visibleRest; i++) {
@@ -89,6 +91,41 @@ const WheelPicker: React.FC<Props> = ({
 
     if (index !== selectedIndex) {
       onChange(index);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const SCROLL_COOLDOWN_MILLISECONDS = 100;
+      const SCROLL_DID_STOP_TIMEOUT = 500;
+      const intervalID = setInterval(() => {
+        const time = new Date().getTime();
+        const difference = time - lastScrollTimestamp.current;
+        if (difference > SCROLL_DID_STOP_TIMEOUT) {
+          flatListRef.current?.scrollToIndex({
+            index: scrollIndex,
+            animated: true,
+          });
+        }
+      }, SCROLL_COOLDOWN_MILLISECONDS);
+      return () => {
+        clearInterval(intervalID);
+      };
+    }
+  }, [scrollIndex]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      onChange(scrollIndex);
+    }
+  }, [scrollIndex, onChange]);
+
+  const handleScroll = (event: NativeSyntheticEvent<any>) => {
+    if (Platform.OS === 'web') {
+      const positionY = event.nativeEvent.contentOffset.y;
+      const index = Math.round(positionY / itemHeight);
+      setScrollIndex(index);
+      lastScrollTimestamp.current = new Date().getTime();
     }
   };
 
@@ -135,7 +172,11 @@ const WheelPicker: React.FC<Props> = ({
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
+          {
+            useNativeDriver: Platform.OS !== 'web',
+            listener: (event: NativeSyntheticEvent<any>
+            ) => handleScroll(event),
+          },
         )}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         snapToOffsets={offsets}
