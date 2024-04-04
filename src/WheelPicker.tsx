@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import styles from './WheelPicker.styles';
 import WheelPickerItem from './WheelPickerItem';
-import _ from 'lodash';
 
 interface Props {
   selectedIndex: number;
@@ -117,8 +116,8 @@ const WheelPicker: React.FC<Props> = ({
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const debouncedOnChange = _.debounce(() => onChange(scrollIndex), 300);
-      debouncedOnChange();
+      const handler = setTimeout(() => onChange(scrollIndex), 300);
+      return () => clearTimeout(handler);
     }
   }, [scrollIndex, onChange]);
 
